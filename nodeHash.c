@@ -295,7 +295,7 @@ ExecHashTableCreate(Hash *node, List *hashOperators)
 	hashtable->curbatch = 0;
 	hashtable->nbatch_original = nbatch;
 	hashtable->nbatch_outstart = nbatch;
-	hashtable->growEnabled = true;
+	hashtable->growEnabled = false;//CSI3130: Disabling use of Multiple Batches
 	hashtable->totalTuples = 0;
 	hashtable->innerBatchFile = NULL;
 	hashtable->outerBatchFile = NULL;
@@ -797,14 +797,32 @@ ExecHashGetBucketAndBatch(HashJoinTable hashtable,
  *
  * The current outer tuple must be stored in econtext->ecxt_outertuple.
  */
-HeapTuple
+HashJoinTuple //CSI3130
 ExecScanHashBucket(HashJoinState *hjstate,
 				   ExprContext *econtext)
 {
+	//remove initialization
 	List	   *hjclauses = hjstate->hashclauses;
-	HashJoinTable hashtable = hjstate->hj_HashTable;
-	HashJoinTuple hashTuple = hjstate->hj_CurTuple;
-	uint32		hashvalue = hjstate->hj_CurHashValue;
+	HashJoinTable hashtable;
+	HashJoinTuple hashTuple;
+	uint32		hashvalue;
+	int bucketNo;
+	TupleTableSlot tupleSlot;
+
+	if (hjstate->probing_inner){
+		hashtable = hjstate->inner_hj_HashTable;
+		hashTuple = hjstate->inner_hj_CurTuple;
+		hashvalue = hjstate->outer_hj_CurHashValue;
+		bucketNo = hjstate->inner_hj_CurBucketNo;
+		tupleSlot = hjstate->hj_InnerTupleSlot;
+	}
+	else {
+		hashtable = hjstate->outer_hj_HashTable;
+		hashTuple = hjstate->outer_hj_CurTuple;
+		hashvalue = hjstate->inner_hj_CurHashValue;
+		bucketNo = hjstate->outer_hj_CurBucketNo;
+		tupleSlot = hjstate->hj_OuterTupleSlot;
+	}
 
 	/*
 	 * hj_CurTuple is NULL to start scanning a new bucket, or the address of
@@ -835,7 +853,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 			if (ExecQual(hjclauses, econtext, false))
 			{
 				hjstate->hj_CurTuple = hashTuple;
-				return heapTuple;
+				return hashTuple;
 			}
 		}
 
