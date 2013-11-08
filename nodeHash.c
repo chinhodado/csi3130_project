@@ -801,14 +801,15 @@ HashJoinTuple //CSI3130
 ExecScanHashBucket(HashJoinState *hjstate,
 				   ExprContext *econtext)
 {
-	//remove initialization
-	List	   *hjclauses = hjstate->hashclauses;
+	//CSI3130: remove initialization and add new declarations
+	List	   *hjclauses = hjstate->hashclauses; 
 	HashJoinTable hashtable;
 	HashJoinTuple hashTuple;
 	uint32		hashvalue;
 	int bucketNo;
 	TupleTableSlot tupleSlot;
 
+	//CSI3130
 	if (hjstate->probing_inner){
 		hashtable = hjstate->inner_hj_HashTable;
 		hashTuple = hjstate->inner_hj_CurTuple;
@@ -853,7 +854,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 			if (ExecQual(hjclauses, econtext, false))
 			{
 				hjstate->hj_CurTuple = hashTuple;
-				return hashTuple;
+				return hashTuple; //CSI3130
 			}
 		}
 
