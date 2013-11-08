@@ -1113,20 +1113,34 @@ typedef struct HashJoinState
 {
 	JoinState	js;				/* its first field is NodeTag */
 	List	   *hashclauses;	/* list of ExprState nodes */
-	HashJoinTable hj_HashTable;
-	uint32		hj_CurHashValue;
-	int			hj_CurBucketNo;
-	HashJoinTuple hj_CurTuple;
+	HashJoinTable inner_hj_HashTable; //CSI3130
+	HashJoinTable outer_hj_HashTable; //CSI3130
+	uint32		inner_hj_CurHashValue; //CSI3130
+	uint32		outer_hj_CurHashValue; //CSI3130
+	int 		inner_hj_CurBucketNo;  //CSI3130
+	int 		outer_hj_CurBucketNo;  //CSI3130
+	HashJoinTuple inner_hj_CurTuple;   //CSI3130
+	HashJoinTuple outer_hj_CurTuple;   //CSI3130
 	List	   *hj_OuterHashKeys;		/* list of ExprState nodes */
 	List	   *hj_InnerHashKeys;		/* list of ExprState nodes */
 	List	   *hj_HashOperators;		/* list of operator OIDs */
 	TupleTableSlot *hj_OuterTupleSlot;
-	TupleTableSlot *hj_HashTupleSlot;
+	TupleTableSlot *hj_InnerTupleSlot;	//CSI3130
+	TupleTableSlot *inner_hj_HashTupleSlot;	//CSI3130
+	TupleTableSlot *outer_hj_HashTupleSlot;	//CSI3130
 	TupleTableSlot *hj_NullInnerTupleSlot;
 	TupleTableSlot *hj_FirstOuterTupleSlot;
+	TupleTableSlot *hj_FirstInnerTupleSlot;	//CSI3130
+	bool 		inner_exhausted;	//CSI3130
+	bool 		outer_exhausted;	//CSI3130
 	bool		hj_NeedNewOuter;
+	bool		hj_NeedNewInner;	//CSI3130
 	bool		hj_MatchedOuter;
 	bool		hj_OuterNotEmpty;
+	bool		hj_InnerNotEmpty;	//CSI3130
+	int  		matches_by_probing_inner;	//CSI3130
+	int 		matches_by_probing_outer;	//CSI3130
+	bool		isNextFetchInner;	//CSI3130, false -> outer, true -> inner
 } HashJoinState;
 
 
