@@ -6,7 +6,7 @@ Files to be submitted at the end: `createplan.c`, `nodeHash.c`, `execnodes.h` an
 Part 1 todo: submit these two files:
 
 - createplan.c
-	  - modify `create_hashjoin_plan()`
+	  - modify `create_hashjoin_plan()` -> done
 
 - nodehash.c
 	  - modify `ExecHash()` - complete implementation -> done
