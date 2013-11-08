@@ -40,7 +40,7 @@ static void ExecHashIncreaseNumBatches(HashJoinTable hashtable);
  *		stub for pro forma compliance
  * ----------------------------------------------------------------
  */
-TupleTableSlot *
+TupleTableSlot * //CSI3130
 ExecHash(HashState *node)
 {
 	PlanState  *outerNode;
