@@ -85,7 +85,7 @@ ExecHashJoin(HashJoinState *node)
 	 * tuple (because there is a function-returning-set in the projection
 	 * expressions).  If so, try to project another one.
 	 */
-	//CSI3130
+	// CSI3130
 	// if (node->js.ps.ps_TupFromTlist)
 	// {
 	// 	TupleTableSlot *result;
@@ -245,7 +245,7 @@ ExecHashJoin(HashJoinState *node)
 		// 	}
 		// }
 
-		//CSI3130 on slide 10, for inner
+		//CSI3130
 		if ((node->hj_NeedNewInner || node->inner_finished) && (node->hj_NeedNewOuter || node->outer_finished) )
 		{
 			if (!node->inner_finished){
@@ -269,64 +269,156 @@ ExecHashJoin(HashJoinState *node)
 					printf("inner finished\n");
 					node->inner_finished=true;
 				}
-			}			
+			}
+
+			if (!node->outer_finished){
+				outerTupleSlot = ExecProcNode((PlanState*)outerNode);
+				node->js.ps.ps_OuterTupleSlot = outerTupleSlot;
+				if (!TupIsNull(outerTupleSlot)){
+					printf("next outer tuple\n");
+					node->hj_NeedNewOuter=false;
+					econtext = node->js.ps.ps_ExprContext;
+					econtext->ecxt_outertuple = outerTupleSlot;
+					hashvalue = ExecHashGetHashValue(inner_hashtable, econtext,		
+						node->hj_OuterHashKeys);
+					node->js.ps.ps_OuterTupleSlot = outerTupleSlot;
+					econtext->ecxt_outertuple = node->js.ps.ps_OuterTupleSlot;
+
+					node->outer_hj_CurHashValue = hashvalue;
+					ExecHashGetBucketAndBatch(inner_hashtable, hashvalue,
+						&node->inner_hj_CurBucketNo, &batchno);
+					node->inner_hj_CurTuple = NULL;		
+				} else{
+					printf("outer finished\n");
+					node->outer_finished=true;
+				}
+			}					
 		}
 
 		/*
 		 * OK, scan the selected hash bucket for matches
 		 */
-		for (;;)
-		{
-			curtuple = ExecScanHashBucket(node, econtext);
-			if (curtuple == NULL)
-				break;			/* out of matches */
+		if(!TupIsNull(node->js.ps.ps_OuterTupleSlot)){ //CSI3130
 
-			/*
-			 * we've got a match, but still need to test non-hashed quals
-			 */
-			inntuple = ExecStoreTuple(curtuple,
-									  node->hj_HashTupleSlot,
-									  InvalidBuffer,
-									  false);	/* don't pfree this tuple */
-			econtext->ecxt_innertuple = inntuple;
-
-			/* reset temp memory each time to avoid leaks from qual expr */
-			ResetExprContext(econtext);
-
-			/*
-			 * if we pass the qual, then save state for next call and have
-			 * ExecProject form the projection, store it in the tuple table,
-			 * and return the slot.
-			 *
-			 * Only the joinquals determine MatchedOuter status, but all quals
-			 * must pass to actually return the tuple.
-			 */
-			if (joinqual == NIL || ExecQual(joinqual, econtext, false))
+			for (;;)
 			{
-				// node->hj_MatchedOuter = true; //CSI3130
+				ExprContext *econtext = node->js.ps.ps_ExprContext;
+				econtext->ecxt_outertuple = node->js.ps.ps_OuterTupleSlot;
+				node->probing_outer=false;
 
-				if (otherqual == NIL || ExecQual(otherqual, econtext, false))
-				{
-					TupleTableSlot *result;
-
-					result = ExecProject(node->js.ps.ps_ProjInfo, &isDone);
-
-					if (isDone != ExprEndResult)
-					{
-						node->matches_by_probing_outer=node->matches_by_probing_outer+1; //CSI3130
-						node->js.ps.ps_TupFromTlist =
-							(isDone == ExprMultipleResult);
-						return result;
-					}
-				}
+				curtuple = ExecScanHashBucket(node, econtext);
+				if (curtuple == NULL)
+					break;			/* out of matches */
 
 				/*
-				 * If we didn't return a tuple, may need to set NeedNewOuter
+				 * we've got a match, but still need to test non-hashed quals
 				 */
-				if (node->js.jointype == JOIN_IN)
+				inntuple = ExecStoreTuple(curtuple,
+										  node->inner_hj_HashTupleSlot,
+										  InvalidBuffer,
+										  false);	/* don't pfree this tuple */
+				econtext->ecxt_innertuple = inntuple;
+
+				/* reset temp memory each time to avoid leaks from qual expr */
+				ResetExprContext(econtext);
+
+				/*
+				 * if we pass the qual, then save state for next call and have
+				 * ExecProject form the projection, store it in the tuple table,
+				 * and return the slot.
+				 *
+				 * Only the joinquals determine MatchedOuter status, but all quals
+				 * must pass to actually return the tuple.
+				 */
+				if (joinqual == NIL || ExecQual(joinqual, econtext, false))
 				{
-					node->hj_NeedNewOuter = true;
-					break;		/* out of loop over hash bucket */
+					// node->hj_MatchedOuter = true; //CSI3130
+
+					if (otherqual == NIL || ExecQual(otherqual, econtext, false))
+					{
+						TupleTableSlot *result;
+
+						result = ExecProject(node->js.ps.ps_ProjInfo, &isDone);
+
+						if (isDone != ExprEndResult)
+						{
+							node->matches_by_probing_outer=node->matches_by_probing_outer+1; //CSI3130
+							node->js.ps.ps_TupFromTlist =
+								(isDone == ExprMultipleResult);
+							return result;
+						}
+					}
+
+					/*
+					 * If we didn't return a tuple, may need to set NeedNewOuter
+					 */
+					if (node->js.jointype == JOIN_IN)
+					{
+						node->hj_NeedNewOuter = true;
+						break;		/* out of loop over hash bucket */
+					}
+				}
+			}
+		}
+
+		if(!TupIsNull(node->js.ps.ps_InnerTupleSlot)){ //CSI3130
+
+			for (;;)
+			{
+				ExprContext *econtext = node->js.ps.ps_ExprContext;
+				econtext->ecxt_innertuple = node->js.ps.ps_InnerTupleSlot;
+				node->probing_inner=false;
+
+				curtuple = ExecScanHashBucket(node, econtext);
+				if (curtuple == NULL)
+					break;			/* out of matches */
+
+				/*
+				 * we've got a match, but still need to test non-hashed quals
+				 */
+				outtuple = ExecStoreTuple(curtuple,
+										  node->outer_hj_HashTupleSlot,
+										  InvalidBuffer,
+										  false);	/* don't pfree this tuple */
+				econtext->ecxt_outertuple = outtuple;
+
+				/* reset temp memory each time to avoid leaks from qual expr */
+				ResetExprContext(econtext);
+
+				/*
+				 * if we pass the qual, then save state for next call and have
+				 * ExecProject form the projection, store it in the tuple table,
+				 * and return the slot.
+				 *
+				 * Only the joinquals determine MatchedOuter status, but all quals
+				 * must pass to actually return the tuple.
+				 */
+				if (joinqual == NIL || ExecQual(joinqual, econtext, false))
+				{
+
+					if (otherqual == NIL || ExecQual(otherqual, econtext, false))
+					{
+						TupleTableSlot *result;
+
+						result = ExecProject(node->js.ps.ps_ProjInfo, &isDone);
+
+						if (isDone != ExprEndResult)
+						{
+							node->matches_by_probing_inner=node->matches_by_probing_inner+1; //CSI3130
+							node->js.ps.ps_TupFromTlist =
+								(isDone == ExprMultipleResult);
+							return result;
+						}
+					}
+
+					/*
+					 * If we didn't return a tuple, may need to set NeedNewInner
+					 */
+					if (node->js.jointype == JOIN_IN)
+					{
+						node->hj_NeedNewInner = true;
+						break;		/* out of loop over hash bucket */
+					}
 				}
 			}
 		}
@@ -386,8 +478,6 @@ ExecInitHashJoin(HashJoin *node, EState *estate)
 	List	   *hoperators;
 	ListCell   *l;
 
-	//CSI3130: Check for unsupported flags using Assert
-	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
 
 	/*
 	 * create state structure
@@ -426,8 +516,8 @@ ExecInitHashJoin(HashJoin *node, EState *estate)
 	outerNode = (Hash *) outerPlan(node); //CSI3130
 	innerNode = (Hash *) innerPlan(node); //CSI3130
 
-	outerPlanState(hjstate) = ExecInitNode((Plan *) outerNode, estate, eflags);//CSI3130 note: may need to remove the eflags
-	innerPlanState(hjstate) = ExecInitNode((Plan *) innerNode, estate, eflags);//CSI3130
+	outerPlanState(hjstate) = ExecInitNode((Plan *) outerNode, estate);//CSI3130
+	innerPlanState(hjstate) = ExecInitNode((Plan *) innerNode, estate);//CSI3130
 
 #define HASHJOIN_NSLOTS 3
 
