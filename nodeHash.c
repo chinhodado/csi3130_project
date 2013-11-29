@@ -70,20 +70,22 @@ ExecHash(HashState *node)
 	 * get all inner tuples and insert into the hash table (or temp files)
 	 */
 
-		slot = ExecProcNode(outerNode);
-		if (TupIsNull(slot))
-			break;
+	slot = ExecProcNode(outerNode);
+	if (!TupIsNull(slot))
+	{
 		hashtable->totalTuples += 1;
 		/* We have to compute the hash value */
 		econtext->ecxt_innertuple = slot;
 		econtext->ecxt_outertuple = slot; /* modified */
 		hashvalue = ExecHashGetHashValue(hashtable, econtext, hashkeys); /* modified */
 		ExecHashTableInsert(hashtable, slot, hashvalue);
-	
+	} else {
 
-	/* must provide our own instrumentation support */
-	if (node->ps.instrument)
-		InstrStopNode(node->ps.instrument, hashtable->totalTuples);
+		/* must provide our own instrumentation support */
+		if (node->ps.instrument)
+			InstrStopNode(node->ps.instrument, hashtable->totalTuples);
+		return NULL;
+	}
 
 	/*
 	 * We do not return the hash table directly because it's not a subtype of
@@ -92,7 +94,7 @@ ExecHash(HashState *node)
 	 * state.  Ugly but not really worth cleaning up, since Hashjoin knows
 	 * quite a bit more about Hash besides that.
 	 */
-	return NULL;
+	return slot;
 }
 
 /* ----------------------------------------------------------------
@@ -807,7 +809,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 	HashJoinTuple hashTuple;
 	uint32		hashvalue;
 	int bucketNo;
-	TupleTableSlot tupleSlot;
+	TupleTableSlot *tupleSlot;
 
 	//CSI3130
 	if (hjstate->probing_inner){

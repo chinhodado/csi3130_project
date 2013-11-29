@@ -1139,6 +1139,7 @@ typedef struct HashJoinState
 	bool		hj_MatchedOuter;
 	bool		hj_OuterNotEmpty;
 	bool		hj_InnerNotEmpty;	//CSI3130
+	bool 		probing_inner;		//CSI3130
 	int  		matches_by_probing_inner;	//CSI3130
 	int 		matches_by_probing_outer;	//CSI3130
 	bool		isNextFetchInner;	//CSI3130, false -> outer, true -> inner
