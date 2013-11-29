@@ -78,7 +78,7 @@ ExecHash(HashState *node)
 		econtext->ecxt_innertuple = slot;
 		econtext->ecxt_outertuple = slot; /* modified */
 		hashvalue = ExecHashGetHashValue(hashtable, econtext, hashkeys); /* modified */
-		ExecHashTableInsert(hashtable, slot, hashvalue);
+		ExecHashTableInsert(hashtable, ExecFetchSlotTuple(slot), hashvalue);
 	} else {
 
 		/* must provide our own instrumentation support */
@@ -832,7 +832,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 	 * the last tuple returned from the current bucket.
 	 */
 	if (hashTuple == NULL)
-		hashTuple = hashtable->buckets[hjstate->hj_CurBucketNo];
+		hashTuple = hashtable->buckets[bucketNo]; //CSI3130
 	else
 		hashTuple = hashTuple->next;
 
@@ -845,7 +845,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 
 			/* insert hashtable's tuple into exec slot so ExecQual sees it */
 			inntuple = ExecStoreTuple(heapTuple,
-									  hjstate->hj_HashTupleSlot,
+									  tupleSlot, //CSI3130
 									  InvalidBuffer,
 									  false);	/* do not pfree */
 			econtext->ecxt_innertuple = inntuple;
@@ -855,7 +855,8 @@ ExecScanHashBucket(HashJoinState *hjstate,
 
 			if (ExecQual(hjclauses, econtext, false))
 			{
-				hjstate->hj_CurTuple = hashTuple;
+				if (hjstate->probing_inner) hjstate->inner_hj_CurTuple = hashTuple; //CSI3130
+				else hjstate->outer_hj_CurTuple = hashTuple; //CSI3130
 				return hashTuple; //CSI3130
 			}
 		}

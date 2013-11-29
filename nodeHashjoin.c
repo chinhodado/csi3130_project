@@ -161,7 +161,8 @@ ExecHashJoin(HashJoinState *node)
 										node->hj_HashOperators);
 		outer_hashtable = ExecHashTableCreate((Hash *) outerNode->ps.plan, //CSI3130
 										node->hj_HashOperators);
-		node->hj_HashTable = hashtable;
+		node->inner_hj_HashTable = inner_hashtable;
+		node->outer_hj_HashTable = outer_hashtable;
 
 		/*
 		 * execute the Hash node, to build the hash table
@@ -592,8 +593,8 @@ ExecInitHashJoin(HashJoin *node, EState *estate)
 	hjstate->outer_hj_CurBucketNo = 0; //CSI3130
 	hjstate->outer_hj_CurTuple = NULL; //CSI3130	
 
-	hjstate->inner_exhausted = false;  //CSI3130
-	hjstate->outer_exhausted = false;  //CSI3130
+	hjstate->inner_finished = false;  //CSI3130
+	hjstate->outer_finished = false;  //CSI3130
 
 	hjstate->matches_by_probing_inner = 0; //CSI3130
 	hjstate->matches_by_probing_outer = 0; //CSI3130
@@ -657,10 +658,16 @@ ExecEndHashJoin(HashJoinState *node)
 	/*
 	 * Free hash table
 	 */
-	if (node->hj_HashTable)
+	if (node->inner_hj_HashTable)//to ask
 	{
-		ExecHashTableDestroy(node->hj_HashTable);
-		node->hj_HashTable = NULL;
+		ExecHashTableDestroy(node->inner_hj_HashTable);
+		node->inner_hj_HashTable = NULL;
+	}
+
+	if (node->outer_hj_HashTable)//to ask
+	{
+		ExecHashTableDestroy(node->outer_hj_HashTable);
+		node->outer_hj_HashTable = NULL;
 	}
 
 	/*
@@ -674,7 +681,6 @@ ExecEndHashJoin(HashJoinState *node)
 	ExecClearTuple(node->js.ps.ps_ResultTupleSlot);
 	ExecClearTuple(node->hj_OuterTupleSlot);
 	ExecClearTuple(node->hj_InnerTupleSlot); // CSI3130
-	ExecClearTuple(node->hj_HashTupleSlot);
 
 	/*
 	 * clean up subtrees
@@ -699,7 +705,7 @@ ExecHashJoinOuterGetTuple(PlanState *outerNode,
 						  HashJoinState *hjstate,
 						  uint32 *hashvalue)
 {
-	HashJoinTable hashtable = hjstate->hj_HashTable;
+	HashJoinTable hashtable = hjstate->hj_HashTable; //to ask
 	int			curbatch = hashtable->curbatch;
 	TupleTableSlot *slot;
 

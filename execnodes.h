@@ -1132,14 +1132,15 @@ typedef struct HashJoinState
 	TupleTableSlot *hj_NullInnerTupleSlot;
 	TupleTableSlot *hj_FirstOuterTupleSlot;
 	TupleTableSlot *hj_FirstInnerTupleSlot;	//CSI3130
-	bool 		inner_exhausted;	//CSI3130
-	bool 		outer_exhausted;	//CSI3130
+	bool 		inner_finished;	//CSI3130
+	bool 		outer_finished;	//CSI3130
 	bool		hj_NeedNewOuter;
 	bool		hj_NeedNewInner;	//CSI3130
 	bool		hj_MatchedOuter;
 	bool		hj_OuterNotEmpty;
 	bool		hj_InnerNotEmpty;	//CSI3130
 	bool 		probing_inner;		//CSI3130
+	bool		probing_outer;		//CSI3130
 	int  		matches_by_probing_inner;	//CSI3130
 	int 		matches_by_probing_outer;	//CSI3130
 	bool		isNextFetchInner;	//CSI3130, false -> outer, true -> inner
