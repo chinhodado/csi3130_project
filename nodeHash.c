@@ -907,3 +907,117 @@ ExecReScanHash(HashState *node, ExprContext *exprCtxt)
 	if (((PlanState *) node)->lefttree->chgParam == NULL)
 		ExecReScan(((PlanState *) node)->lefttree, exprCtxt);
 }
+
+/*
+ * ExecScanHashBucket
+ *		scan a hash bucket for matches to the current outer tuple
+ *
+ * The current outer tuple must be stored in econtext->ecxt_outertuple.
+ */
+HeapTuple
+ExecScanHashBucket_probeouter(HashJoinState *hjstate,
+				   ExprContext *econtext)
+{
+	List	   *hjclauses = hjstate->hashclauses;
+	HashJoinTable hashtable = hjstate->outer_hj_HashTable;
+	HashJoinTuple hashTuple = hjstate->outer_hj_CurTuple;
+	uint32		hashvalue = hjstate->inner_hj_CurHashValue;
+
+	/*
+	 * hj_CurTuple is NULL to start scanning a new bucket, or the address of
+	 * the last tuple returned from the current bucket.
+	 */
+	if (hashTuple == NULL)
+		hashTuple = hashtable->buckets[hjstate->outer_hj_CurBucketNo];
+	else
+		hashTuple = hashTuple->next;
+
+	while (hashTuple != NULL)
+	{
+		if (hashTuple->hashvalue == hashvalue)
+		{
+			HeapTuple	heapTuple = &hashTuple->htup;
+			TupleTableSlot *outtuple;
+
+			/* insert hashtable's tuple into exec slot so ExecQual sees it */
+
+			outtuple = ExecStoreTuple(heapTuple,
+									  hjstate->outer_hj_HashTupleSlot,
+									  InvalidBuffer,
+									  false);	// do not pfree 
+			econtext->ecxt_outertuple = outtuple;
+
+			/* reset temp memory each time to avoid leaks from qual expr */
+			ResetExprContext(econtext);
+	
+			
+//			printf("outer attrs in probeouter =%d\n",hjstate->inner_hj_HashTupleSlot->tts_tupleDescriptor->natts);
+			
+			if (ExecQual(hjclauses, econtext, false))
+			{
+				hjstate->outer_hj_CurTuple = hashTuple;
+				return heapTuple;
+			}
+		}
+
+		hashTuple = hashTuple->next;
+	}
+
+	/*
+	 * no match
+	 */
+	return NULL;
+}
+
+HeapTuple
+ExecScanHashBucket_probeinner(HashJoinState *hjstate,
+				   ExprContext *econtext)
+{
+	List	   *hjclauses = hjstate->hashclauses;
+	HashJoinTable hashtable = hjstate->inner_hj_HashTable;
+	HashJoinTuple hashTuple = hjstate->inner_hj_CurTuple;
+	uint32		hashvalue = hjstate->outer_hj_CurHashValue;
+
+	/*
+	 * hj_CurTuple is NULL to start scanning a new bucket, or the address of
+	 * the last tuple returned from the current bucket.
+	 */
+	if (hashTuple == NULL)
+		hashTuple = hashtable->buckets[hjstate->inner_hj_CurBucketNo];
+	else
+		hashTuple = hashTuple->next;
+
+	while (hashTuple != NULL)
+	{
+		if (hashTuple->hashvalue == hashvalue)
+		{
+			HeapTuple	heapTuple = &hashTuple->htup;
+			TupleTableSlot *inntuple;
+
+			/* insert hashtable's tuple into exec slot so ExecQual sees it */
+			inntuple = ExecStoreTuple(heapTuple,
+									  hjstate->inner_hj_HashTupleSlot,
+									  InvalidBuffer,
+									  false);	/* do not pfree */
+			econtext->ecxt_innertuple = inntuple;
+
+			/* reset temp memory each time to avoid leaks from qual expr */
+			ResetExprContext(econtext);
+
+//			printf("outer attrs in probeouter =%d\n",hjstate->inner_hj_HashTupleSlot->tts_tupleDescriptor->natts);
+			
+			if (ExecQual(hjclauses, econtext, false))
+			{
+				hjstate->inner_hj_CurTuple = hashTuple;
+				return heapTuple;
+			}
+		}
+
+		hashTuple = hashTuple->next;
+	}
+
+	/*
+	 * no match
+	 */
+	return NULL;
+}
