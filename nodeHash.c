@@ -889,7 +889,7 @@ ExecScanHashBucket_probeouter(HashJoinState *hjstate,
 	return NULL;
 }
 
-/*
+/* CSI3130
  * ExecScanHashBucket_probeinner
  *		scan a hash bucket for matches to the current inner tuple
  *

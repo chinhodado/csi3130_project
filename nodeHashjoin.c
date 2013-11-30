@@ -227,14 +227,14 @@ ExecHashJoin(HashJoinState *node)
 					hashvalue = ExecHashGetHashValue(outer_hashtable, econtext,
 												  node->hj_InnerHashKeys);
 					node->js.ps.ps_InnerTupleSlot = innerTupleSlot;
-					econtext->ecxt_innertuple = node->js.ps.ps_InnerTupleSlot;
+					econtext->ecxt_innertuple = innerTupleSlot;
 					
 					node->inner_hj_CurHashValue = hashvalue;
 					ExecHashGetBucketAndBatch(outer_hashtable, hashvalue,
 										  &node->outer_hj_CurBucketNo, &batchno);
 					node->outer_hj_CurTuple = NULL;		//reset current tuple in bucket in outer hash table
 				} else {
-					node->inner_exhausted=true;
+					node->inner_exhausted = true;
 				}
 			}
 		
@@ -247,6 +247,7 @@ ExecHashJoin(HashJoinState *node)
 				
 				if (!TupIsNull(outerTupleSlot))
 				{
+					node->hj_NeedNewOuter=false;
 					bool isNullAttr;
 
 					//get hash value
@@ -258,7 +259,6 @@ ExecHashJoin(HashJoinState *node)
 					
 					node->js.ps.ps_OuterTupleSlot = outerTupleSlot;
 					econtext->ecxt_outertuple = outerTupleSlot;
-					node->hj_NeedNewOuter = false;
 					node->hj_MatchedOuter = false;		//for outer join
 
 					/*
@@ -269,28 +269,9 @@ ExecHashJoin(HashJoinState *node)
 					ExecHashGetBucketAndBatch(inner_hashtable, hashvalue,
 											  &node->inner_hj_CurBucketNo, &batchno);
 					node->inner_hj_CurTuple = NULL;		//reset current tuple in bucket in inner hash table
-
-					/*
-					 * Now we've got an outer tuple and the corresponding hash bucket,
-					 * but this tuple may not belong to the current batch.
-					 */
-
-					Assert( batchno == inner_hashtable->curbatch);
-					if (false && batchno != inner_hashtable->curbatch)
-					{
-						/*
-						 * Need to postpone this outer tuple to a later batch. Save it
-						 * in the corresponding outer-batch file.
-						 */
-						Assert(batchno > inner_hashtable->curbatch);
-						ExecHashJoinSaveTuple(ExecFetchSlotTuple(outerTupleSlot),
-											  hashvalue,
-											  &inner_hashtable->outerBatchFile[batchno]);
-						node->hj_NeedNewOuter = true;
-						continue;		/* loop around for a new outer tuple */
-					}
+					
 				} else {
-					node->outer_exhausted=true;
+					node->outer_exhausted = true;
 				}
 			}	
 		}
